@@ -1,0 +1,532 @@
+#+TITLE: Emacs Configuration
+#+AUTHOR: Johan Dahlkar
+#+EMAIL: johan.dahlkar@gmail.com
+
+* Personal Information
+#+begin_src emacs-lisp
+(setq user-full-name "Johan Dahlkar"
+      user-mail-address "johan.dahlkar@gmail.com")
+#+end_src
+
+* Emacs Init
+** Setup MELPA
+#+begin_src emacs-lisp
+(require 'package)
+(add-to-list 'package-archives '("melpa" . "http://melpa.org/packages/") t)
+(package-initialize)
+#+end_src
+
+** Install =use-package=.
+#+begin_src emacs-lisp
+(unless (package-installed-p 'use-package)
+  (package-refresh-contents)
+  (package-install 'use-package t))
+
+(require 'use-package-ensure)
+(setq use-package-always-ensure t)
+
+(use-package use-package-ensure-system-package
+  :ensure t)
+#+end_src
+
+** Variables
+#+begin_src emacs-lisp
+(defvar savefile-dir (expand-file-name "savefile" user-emacs-directory))
+#+end_src
+* General Configuration
+** Better Defaults
+#+begin_src emacs-lisp
+  (setq-default
+     ad-redefinition-action 'accept         ; Silence warnings for redefinition
+     auto-save-list-file-prefix nil         ; Prevent tracking for auto-saves
+     cursor-in-non-selected-windows nil     ; Hide the cursor in inactive windows
+     delete-by-moving-to-trash t            ; Delete files to trash
+     fill-column 80                         ; Set width for automatic line breaks
+     gc-cons-threshold (* 8 1024 1024)      ; Increase garbace collect threshold
+     help-window-select t                   ; Focus new help windows when opened
+     indent-tabs-mode nil                   ; Stop using tabs to indent
+     inhibit-startup-screen t               ; Disable start-up screen
+     initial-scratch-message ""             ; Empty the initial *scratch* buffer
+     mouse-yank-at-point t                  ; Yank at point rather than pointer
+     read-process-output-max (* 1024 1024)  ; Increase read size per process
+     recenter-positions '(5 top bottom)     ; Set re-centering positions
+     scroll-conservatively 101              ; Avoid recentering when scrolling far
+     scroll-margin 2                        ; Add a margin when scrolling vertically
+     scroll-preserve-screen-position 1
+     select-enable-clipboard t              ; Merge system's and Emacs' clipboard
+     sentence-end-double-space nil          ; Use a single space after dots
+     show-help-function nil                 ; Disable help text everywhere
+     tab-always-indent 'complete            ; Tab indents first then tries completions
+     tab-width 4                            ; Smaller width for tab characters
+     uniquify-buffer-name-style 'forward    ; Uniquify buffer names
+     warning-minimum-level :error           ; Skip warning buffers
+     window-combination-resize t            ; Resize windows proportionally
+     x-stretch-cursor t                     ; Stretch cursor to the glyph width
+     ring-bell-function 'ignore             ; Disable ring bell
+  )
+  (blink-cursor-mode 0)                     ; Prefer a still cursor
+  (delete-selection-mode 1)                 ; Replace region when inserting text
+  (fset 'yes-or-no-p 'y-or-n-p)             ; Replace yes/no prompts with y/n
+  (global-subword-mode 1)                   ; Iterate through CamelCase words
+  (mouse-avoidance-mode 'exile)             ; Avoid collision of mouse with point
+  (put 'downcase-region 'disabled nil)      ; Enable downcase-region
+  (put 'upcase-region 'disabled nil)        ; Enable upcase-region
+  (set-default-coding-systems 'utf-8)       ; Default to utf-8 encoding
+  (tool-bar-mode 0)                         ; Disable tool bar
+  (menu-bar-mode 0)
+  (scroll-bar-mode 0)
+  (line-number-mode t)
+  (column-number-mode t)
+  (size-indication-mode t)
+  (global-linum-mode t)
+  (setq backup-directory-alist
+        `((".*" . ,temporary-file-directory)))
+  (setq auto-save-file-name-transforms
+        `((".*" ,temporary-file-directory t)))
+
+  ;; autosave the undo-tree history
+  (setq undo-tree-history-directory-alist
+        `((".*" . ,temporary-file-directory)))
+  (setq undo-tree-auto-save-history t)
+
+  ;; revert buffers automatically when underlying files are changed externally
+  (global-auto-revert-mode t)
+#+end_src
+** Theme
+#+begin_src emacs-lisp
+(use-package nord-theme
+   :config (load-theme 'nord t)
+)
+#+end_src
+
+** Global Keybindings
+*** Kill lines backward
+#+begin_src emacs-lisp
+(global-set-key (kbd "C-<backspace>") 'crux-kill-line-backwards)
+#+end_src
+
+*** Font Size
+#+begin_src emacs-lisp
+(global-set-key (kbd "C-+") 'text-scale-increase)
+(global-set-key (kbd "C--") 'text-scale-decrease)
+#+end_src
+
+*** Hippe Expand
+#+begin_src emacs-lisp
+(global-set-key (kbd "M-/") 'hippie-expand)
+#+end_src
+
+*** Open Emacs Config
+Open this file with =C-c e c=
+#+begin_src emacs-lisp
+(defun my/open-config-file ()
+  (interactive)
+  (find-file "~/.emacs.d/emacs.org")
+  (flycheck-mode -1)
+  (end-of-buffer))
+
+(global-set-key (kbd "C-c e c") 'my/open-config-file)
+#+end_src
+
+* Utility Functions
+** Rename file
+Change the name of the current file with =C-x r=
+#+begin_src emacs-lisp
+(defun my/rename-file (new-name)
+  (interactive "FNew name: ")
+  (let ((filename (buffer-file-name)))
+    (if filename
+        (progn
+          (when (buffer-modified-p)
+            (save-buffer))
+          (rename-file filename new-name t)
+          (kill-buffer (current-buffer))
+          (find-file new-name)
+          (message "Renamed '%s' -> '%s'" filename new-name))
+      (message "Buffer '%s' isn't backed by a file!" (buffer-name)))))
+
+(global-set-key "\C-xr" 'my/rename-file)
+#+end_src
+** Sudo open file
+Open file as sudo.
+#+begin_src emacs-lisp
+(defun my/find-file-as-sudo ()
+  (interactive)
+  (let ((file-name (buffer-file-name)))
+    (when file-name
+      (find-alternate-file (concat "/sudo::" file-name)))))
+#+end_src
+* Packages
+** Projectile
+I use projectile to navigate between and in different projects.
+
+#+begin_src emacs-lisp
+  (use-package projectile
+    :bind
+    ("C-c v" . projectile-ag)
+    ("C-c p" . projectile-command-map)
+    :config
+    (setq projectile-switch-project-action 'projectile-dired)
+    (setq projectile-require-project-root nil)
+    (setq projectile-project-search-path '("~/code/"))
+    (setq projectile-cache-file (expand-file-name "projectile.cache" savefile-dir))
+    (projectile-mode t)
+  )
+#+end_src
+
+** Helm
+#+begin_src emacs-lisp
+  (use-package helm
+    :init
+    (setq helm-split-window-in-side-p t
+          helm-buffers-fuzzy-matching t
+          helm-move-to-line-cycle-in-source t
+    )
+    :bind (("M-x" . helm-M-x)
+           ("M-y" . helm-show-kill-ring)
+           ("C-x b" . helm-mini)
+           ("C-x C-f" . helm-find-files)
+           ("C-x C-b" . helm-buffers-list))
+  )
+  (use-package helm-projectile
+    :config
+    (helm-projectile-on)
+    (setq projectile-completion-system 'helm)
+  )
+#+end_src
+
+** Org
+#+begin_src emacs-lisp
+  (use-package org
+    :config
+    (add-to-list 'auto-mode-alist '("\\.org\\'" . org-mode))
+    (setq org-log-done 'time)
+    (setq org-src-fontify-natively t)
+    (setq org-src-tab-acts-natively t)
+    (setq org-src-window-setup 'current-window)
+    (setq org-log-done 'time)
+    (setq org-agenda-span 14)
+    (setq org-agenda-start-on-weekday nil)
+    (add-to-list 'org-structure-template-alist
+                 '("el" . "src emacs-lisp\n"))
+    :bind (("C-c l" . org-store-link)
+           ("C-c a" . org-agenda)
+           ("C-c b" . org-switchb)
+           ("C-c c" . org-capture)))
+#+end_src
+*** Org management
+All org files are stored in =~/org=, which i sync with Syncthing. And all todos are stored in =index.org=
+and finished tasks are archived in =archive.org=.
+
+#+begin_src emacs-lisp
+  (setq org-directory "~/org")
+  (defun org-file-path (filename)
+    "Return the absolute address of an org file, given its relative name."
+    (concat (file-name-as-directory org-directory) filename))
+
+  (setq org-index-file (org-file-path "index.org"))
+  (setq org-archive-location
+        (concat (org-file-path "archive.org") "::* From %s"))
+
+  (setq org-refile-targets `((,org-index-file :level . 1)
+                             (,(org-file-path "snippets.org") :level . 1)
+                             (,(org-file-path "links.org") :level . 1)
+                             (,(org-file-path "notes.org") :level . 1)
+                             (,(org-file-path "meetings.org") :level . 1))
+  )
+#+end_src
+
+TODO: Org agenda files
+#+begin_src emacs-lisp
+  (setq org-agenda-files (list org-index-file
+                               (org-file-path "index.org")
+                               (org-file-path "work-cal.org")
+                               (org-file-path "personal-cal.org")
+                               (org-file-path "habits.org")))
+#+end_src
+
+Hitting =C-c C-x C-s= will mark a task as done, move it to an appropriate place in the archive, and save all the Org buffers.
+#+begin_src emacs-lisp
+(defun me/mark-done-and-archive ()
+  "Mark the state of an org-mode item as DONE and archive it."
+  (interactive)
+  (org-todo 'done)
+  (org-archive-subtree))
+
+(define-key org-mode-map (kbd "C-c C-x C-s") 'me/mark-done-and-archive)
+#+end_src
+*** Bullets
+#+begin_src emacs-lisp
+(use-package org-bullets
+  :hook ('org-mode . (lambda () (org-bullets-mode 1)))
+)
+#+end_src
+*** Org Habits
+#+begin_src emacs-lisp
+  (require 'org-habit)
+  (setq org-habit-show-habits-only-for-today nil)
+#+end_src
+*** Capture templates
+#+begin_src emacs-lisp
+(setq org-capture-templates
+      `(("t" "Todo" entry
+         (file+headline org-index-file "Tasks")
+         "* TODO %?\nSCHEDULED: <%(org-read-date nil nil \"+14d\")>\n"
+         :created t)
+
+        ("m" "Meeting" entry
+         (file+headline ,(org-file-path "meetings.org") "Meetings")
+         "* %t %? \n")
+
+        ("l" "Links" entry
+         (file+headline ,(org-file-path "links.org") "Links")
+         "* %t %? \n")
+
+        ("n" "Notes" entry
+         (file+headline ,(org-file-path "notes.org") "Notes")
+         "* %t %? \n")
+
+        ("h" "Habit" entry
+         (file+headline ,(org-file-path "habits.org") "Habits")
+         "* TODO %?\n%U\n%a\nSCHEDULED: %(format-time-string \"%<<%Y-%m-%d %a .+1d/3d>>\")\n:PROPERTIES:\n:STYLE: habit\n:END:\n")
+
+        ("p" "Python Snippet" entry
+         (file+headline ,(org-file-path "snippets.org") "Python Snippet")
+         "* %?\n#+BEGIN_SRC python\n\n#+END_SRC")
+        )
+)
+#+end_src
+
+*** Extra Keybindings
+Open the index file with =C-c i=
+#+begin_src emacs-lisp
+(defun my/open-index-file ()
+  "Open the master org TODO list."
+  (interactive)
+  (find-file org-index-file)
+  (flycheck-mode -1)
+  (end-of-buffer))
+
+(global-set-key (kbd "C-c i") 'my/open-index-file)
+#+end_src
+** Wind Move
+This is a package that enables moving between open windows in emacs.
+#+begin_src emacs-lisp
+(use-package windmove
+   :bind (("M-a" . windmove-left)
+          ("M-e" . windmove-right)
+          ("M-n" . windmove-down)
+          ("M-p" . windmove-up))
+)
+#+end_src
+** Magit
+I use Magit as my git client. It is awesome.
+#+begin_src emacs-lisp
+(use-package magit)
+#+end_src
+** Diff Highlight
+This package highligts diffs in a file compared to what is commited to git.
+#+begin_src emacs-lisp
+(use-package diff-hl
+  :hook ((dired-mode . diff-hl-dired-mode)
+         (magit-post-refresh . diff-hl-magit-post-refresh))
+  :config (global-diff-hl-mode +1)
+)
+#+end_src
+
+** Easy Kill
+Improved mark and kill things.
+#+begin_src emacs-lisp
+(use-package easy-kill
+  :bind (([remap kill-ring-save] . easy-kill)
+         ([remap mark-sexp] . easy-mark))
+)
+#+end_src
+
+** Smartparens
+Use smart parens to handle pairs, e.g. =<% %>=.
+#+begin_src emacs-lisp
+  (use-package smartparens
+    :config
+    (setq sp-base-key-bindings 'paredit)
+    (setq sp-autoskip-closing-pair 'always)
+    (setq sp-hybrid-kill-entire-symbol nil)
+    (sp-use-paredit-bindings)
+    (show-smartparens-global-mode +1)
+  )
+#+end_src
+
+** Hl todo
+Highlight TODO in source code.
+#+begin_src emacs-lisp
+(use-package hl-todo
+  :config (global-hl-todo-mode 1)
+)
+#+end_src
+
+** Whitespace
+Shows whitespace in editor.
+#+begin_src emacs-lisp
+(use-package whitespace
+  :custom
+  (whitespace-line-column 80)
+  (whitespace-style '(face tabs empty trailing lines-tail))
+)
+#+end_src
+
+** Undo Tree
+A super nice package that display a undo tree which you can traverse forward and backwards.
+#+begin_src emacs-lisp
+(use-package undo-tree
+  :custom
+  (undo-tree-history-directory-alist `((".*" . ,temporary-file-directory)))
+  (undo-tree-auto-save-history t)
+  :config
+  (global-undo-tree-mode)
+)
+#+end_src
+
+** Rainbow Mode
+Sets the background color of strings that match color names, e.g. #0000ff
+#+begin_src emacs-lisp
+(use-package rainbow-mode
+  :hook (css-mode scss-mode)
+)
+#+end_src
+
+** Crux
+Crux adds some usefull extensions that is alos included in prelude.
+And I am to used to them.
+#+begin_src emacs-lisp
+  (use-package crux
+    :bind (("C-a" . crux-move-beginning-of-line)
+           ("C-<return>" . crux-smart-open-line)
+           ("C-S-<return>" . crux-smart-open-line-above))
+    :config 
+    (crux-with-region-or-line kill-region))
+#+end_src
+
+** Move Text
+Move text moves the current line, or region.
+#+begin_src emacs-lisp
+  (use-package move-text
+    :bind (("C-S-p" . move-text-up)
+           ("C-S-n" . move-text-down)))
+#+end_src
+
+** Browse Kill Ring
+Lets me navigate throug my kill ring.
+#+begin_src emacs-lisp
+  (use-package browse-kill-ring
+    :config
+    (browse-kill-ring-default-keybindings))
+#+end_src
+
+* Programming
+** Base
+*** Which function
+Shows the name of the current function definition in the modeline.
+#+begin_src emacs-lisp
+(use-package which-func
+  :config (which-function-mode 1)
+)
+#+end_src
+*** LSP
+Install a lsp client mode.
+#+begin_src emacs-lisp
+(use-package lsp-mode)
+(use-package lsp-ui
+  :init (setq lsp-ui-sideline-enable t)
+        (setq lsp-ui-doc-enable t)
+        (setq lsp-ui-peek-enable t)
+        (setq lsp-ui-peek-always-show t)
+)
+#+end_src
+** Python
+*** Anaconda Mode
+#+begin_src emacs-lisp
+(use-package anaconda-mode
+  :hook python-mode
+)
+#+end_src
+** JavaScript
+*** Js2 mode
+Install a improved javascript editing mode.
+#+begin_src emacs-lisp
+(use-package js2-mode
+  :config (add-to-list 'auto-mode-alist '("\\.js\\'"    . js2-mode))
+          (add-to-list 'auto-mode-alist '("\\.pac\\'"   . js2-mode))
+          (add-to-list 'interpreter-mode-alist '("node" . js2-mode))
+)
+#+end_src
+*** JSON mode
+#+begin_src emacs-lisp
+(use-package json-mode)
+#+end_src
+** Rust
+If these steps fail you may need to install
+ + rustrc (compiler)
+ + cargo (package manager)
+ + racer (completion tool)
+ + rustfmt (formatting tool)
+ + rls (language server)
+*** Rust mode
+#+begin_src emacs-lisp
+(use-package rust-mode
+  :ensure-system-package (
+    (rustup . "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh")
+    (rustfmt . "rustup component add rustfmt")
+  )
+  :config (setq rust-format-on-save t)
+)
+#+end_src
+*** Cargo
+#+begin_src emacs-lisp
+(use-package cargo
+  :hook (rust-mode . cargo-minor-mode)
+)
+#+end_src
+** Web
+A mode for editing html templates. All html files should use web-mode.
+
+And disable auto pairing to better work with smartparens.
+#+begin_src emacs-lisp
+(use-package web-mode
+  :config
+  (add-to-list 'auto-mode-alist '("\\.html?\\'" . web-mode))
+  (setq web-mode-enable-auto-pairing nil)
+)
+#+end_src
+*** Smartparens
+Add custom smartparens pairs.
+#+begin_src emacs-lisp
+(sp-with-modes '(web-mode)
+  (sp-local-pair "%" "%"
+                 :unless '(sp-in-string-p)
+                 :post-handlers '(((lambda (&rest _ignored)
+                                     (just-one-space)
+                                     (save-excursion (insert " ")))
+                                   "SPC" "=" "#")))
+  (sp-local-tag "%" "<% "  " %>")
+  (sp-local-tag "=" "<%= " " %>")
+  (sp-local-tag "#" "<%# " " %>"))
+#+end_src
+** CSS/SCSS
+*** CSS
+Set indent of css to 2 spaces
+#+begin_src emacs-lisp
+(setq css-indent-offset 2)
+#+end_src
+
+*** SCSS Mode
+#+begin_src emacs-lisp
+(use-package scss-mode
+  :custom
+  (scss-compile-at-save nil)
+)
+#+end_src
+
+** YAML
+#+begin_src emacs-lisp
+  (use-package yaml-mode)
+#+end_src
