@@ -15,7 +15,6 @@
 (add-to-list 'package-archives '("melpa" . "http://melpa.org/packages/") t)
 (package-initialize)
 #+end_src
-
 ** Install =use-package=.
 #+begin_src emacs-lisp
 (unless (package-installed-p 'use-package)
@@ -28,15 +27,14 @@
 (use-package use-package-ensure-system-package
   :ensure t)
 #+end_src
-
 ** Variables
 #+begin_src emacs-lisp
-(defvar savefile-dir (expand-file-name "savefile" user-emacs-directory))
+  (defvar savefile-dir (expand-file-name "savefile" user-emacs-directory))
 #+end_src
 * General Configuration
 ** Better Defaults
 #+begin_src emacs-lisp
-  (setq-default
+    (setq-default
      ad-redefinition-action 'accept         ; Silence warnings for redefinition
      auto-save-list-file-prefix nil         ; Prevent tracking for auto-saves
      cursor-in-non-selected-windows nil     ; Hide the cursor in inactive windows
@@ -63,40 +61,47 @@
      window-combination-resize t            ; Resize windows proportionally
      x-stretch-cursor t                     ; Stretch cursor to the glyph width
      ring-bell-function 'ignore             ; Disable ring bell
-  )
-  (blink-cursor-mode 0)                     ; Prefer a still cursor
-  (delete-selection-mode 1)                 ; Replace region when inserting text
-  (fset 'yes-or-no-p 'y-or-n-p)             ; Replace yes/no prompts with y/n
-  (global-subword-mode 1)                   ; Iterate through CamelCase words
-  (mouse-avoidance-mode 'exile)             ; Avoid collision of mouse with point
-  (put 'downcase-region 'disabled nil)      ; Enable downcase-region
-  (put 'upcase-region 'disabled nil)        ; Enable upcase-region
-  (set-default-coding-systems 'utf-8)       ; Default to utf-8 encoding
-  (tool-bar-mode 0)                         ; Disable tool bar
-  (menu-bar-mode 0)
-  (scroll-bar-mode 0)
-  (line-number-mode t)
-  (column-number-mode t)
-  (size-indication-mode t)
-  (global-linum-mode t)
-  (setq backup-directory-alist
-        `((".*" . ,temporary-file-directory)))
-  (setq auto-save-file-name-transforms
-        `((".*" ,temporary-file-directory t)))
+     line-number-mode nil
+     column-number-mode nil
+     size-indication-mode nil
+     mode-line-position nil
+     )
+    (blink-cursor-mode 0)                     ; Prefer a still cursor
+    (delete-selection-mode 1)                 ; Replace region when inserting text
+    (fset 'yes-or-no-p 'y-or-n-p)             ; Replace yes/no prompts with y/n
+    (global-subword-mode 1)                   ; Iterate through CamelCase words
+    (mouse-avoidance-mode 'exile)             ; Avoid collision of mouse with point
+    (put 'downcase-region 'disabled nil)      ; Enable downcase-region
+    (put 'upcase-region 'disabled nil)        ; Enable upcase-region
+    (set-default-coding-systems 'utf-8)       ; Default to utf-8 encoding
+    (tool-bar-mode 0)                         ; Disable tool bar
+    (menu-bar-mode 0)
+    (scroll-bar-mode 0)
+    (global-linum-mode t)
+    (global-hl-line-mode t)
+    (setq backup-directory-alist
+          `((".*" . ,temporary-file-directory)))
+    (setq auto-save-file-name-transforms
+          `((".*" ,temporary-file-directory t)))
 
-  ;; autosave the undo-tree history
-  (setq undo-tree-history-directory-alist
-        `((".*" . ,temporary-file-directory)))
-  (setq undo-tree-auto-save-history t)
+    ;; autosave the undo-tree history
+    (setq undo-tree-history-directory-alist
+          `((".*" . ,temporary-file-directory)))
+    (setq undo-tree-auto-save-history t)
 
-  ;; revert buffers automatically when underlying files are changed externally
-  (global-auto-revert-mode t)
+    ;; revert buffers automatically when underlying files are changed externally
+    (global-auto-revert-mode t)
+    (let ((default-directory  "~/.emacs.d/lisp/"))
+      (normal-top-level-add-subdirs-to-load-path))
 #+end_src
 ** Theme
 #+begin_src emacs-lisp
-(use-package nord-theme
-   :config (load-theme 'nord t)
-)
+  (use-package nord-theme
+    :config (load-theme 'nord t)
+    :custom-face
+    (trailing-whitespace ((t (:background "#BF616A"))))
+    (whitespace-line ((t (:foreground "#B48EAD"))))
+  )
 #+end_src
 
 ** Global Keybindings
@@ -156,17 +161,68 @@ Open file as sudo.
     (when file-name
       (find-alternate-file (concat "/sudo::" file-name)))))
 #+end_src
+** Wrap With
+A wrapper function for smartparens.
+#+begin_src emacs-lisp
+  (defun my/wrap-with (s)
+    `(lambda (&optional arg)
+       (interactive "P")
+       (sp-wrap-with-pair ,s)))
+#+end_src
+** Parse file for keybindings
+This is a function that can be used to parse an org file for keybindings.
+Useful if you want to use org files to create custom modes.
+
+
+Keybindings are defined by keywords of type KEYMAP:VALUE and
+install the corresponding key bindings in the mu4e-dashboard
+minor mode keymap.  The previous keymap (if any) is erased.
+VALUE is composed of \"keybinding | function-call\" with
+keybidning begin a string describing a key sequence and a call to
+an existing function. For example, to have 'q' to kill the
+current buffer, the syntax would be:
+=#+KEYMAP: q | kill-current-buffer=
+This can be placed anywhere in the org file even though I advised
+to group keymaps at the same place.
+
+#+begin_src emacs-lisp
+  (defun my/org-parse-keymap ()
+    (local-set-key (kbd "<return>") #'org-open-at-point)
+
+    (org-element-map (org-element-parse-buffer) 'keyword
+      (lambda (keyword)
+        (when (string= (org-element-property :key keyword) "KEYMAP")
+          (let* ((value (org-element-property :value keyword))
+                 (key   (string-trim (nth 0 (split-string value "|"))))
+                 (call  (string-trim (nth 1 (split-string value "|")))))
+            (local-set-key
+             (kbd key)
+             (eval (car (read-from-string
+                         (format "(lambda () (interactive) (%s))" call)))))
+            (message
+             "org-parse-keymap: binding %s to %s"
+             key
+             (format "(lambda () (interactive) (%s))" call)))))))
+#+end_src
 * Packages
+** Diminish
+Diminish is used to hide minor modes in the modeline.
+#+begin_src emacs-lisp
+  (use-package diminish
+    :config
+    (diminish 'subword-mode)
+    (diminish 'lisp-interaction-mode))
+#+end_src
 ** Projectile
 I use projectile to navigate between and in different projects.
 
 #+begin_src emacs-lisp
   (use-package projectile
+    :diminish
     :bind
     ("C-c v" . projectile-ag)
     ("C-c p" . projectile-command-map)
     :config
-    (setq projectile-switch-project-action 'projectile-dired)
     (setq projectile-require-project-root nil)
     (setq projectile-project-search-path '("~/code/"))
     (setq projectile-cache-file (expand-file-name "projectile.cache" savefile-dir))
@@ -177,6 +233,7 @@ I use projectile to navigate between and in different projects.
 ** Helm
 #+begin_src emacs-lisp
   (use-package helm
+    :diminish
     :init
     (setq helm-split-window-in-side-p t
           helm-buffers-fuzzy-matching t
@@ -189,6 +246,7 @@ I use projectile to navigate between and in different projects.
            ("C-x C-b" . helm-buffers-list))
   )
   (use-package helm-projectile
+    :diminish
     :config
     (helm-projectile-on)
     (setq projectile-completion-system 'helm)
@@ -196,8 +254,10 @@ I use projectile to navigate between and in different projects.
 #+end_src
 
 ** Org
+*** Init
 #+begin_src emacs-lisp
   (use-package org
+    :diminish
     :config
     (add-to-list 'auto-mode-alist '("\\.org\\'" . org-mode))
     (setq org-log-done 'time)
@@ -207,8 +267,16 @@ I use projectile to navigate between and in different projects.
     (setq org-log-done 'time)
     (setq org-agenda-span 14)
     (setq org-agenda-start-on-weekday nil)
+    (setq org-file-apps
+          '(("\\.docx\\'" . default)
+            ("\\.mm\\'" . default)
+            ("\\.x?html?\\'" . default)
+            ("\\.pdf\\'" . "evince %s")
+            (auto-mode . emacs)))
+
     (add-to-list 'org-structure-template-alist
                  '("el" . "src emacs-lisp\n"))
+
     :bind (("C-c l" . org-store-link)
            ("C-c a" . org-agenda)
            ("C-c b" . org-switchb)
@@ -239,7 +307,6 @@ and finished tasks are archived in =archive.org=.
 TODO: Org agenda files
 #+begin_src emacs-lisp
   (setq org-agenda-files (list org-index-file
-                               (org-file-path "index.org")
                                (org-file-path "work-cal.org")
                                (org-file-path "personal-cal.org")
                                (org-file-path "habits.org")))
@@ -257,9 +324,10 @@ Hitting =C-c C-x C-s= will mark a task as done, move it to an appropriate place 
 #+end_src
 *** Bullets
 #+begin_src emacs-lisp
-(use-package org-bullets
-  :hook ('org-mode . (lambda () (org-bullets-mode 1)))
-)
+  (use-package org-superstar
+    :diminish
+    :hook ('org-mode . (lambda () (org-superstar-mode 1)))
+  )
 #+end_src
 *** Org Habits
 #+begin_src emacs-lisp
@@ -268,33 +336,37 @@ Hitting =C-c C-x C-s= will mark a task as done, move it to an appropriate place 
 #+end_src
 *** Capture templates
 #+begin_src emacs-lisp
-(setq org-capture-templates
-      `(("t" "Todo" entry
-         (file+headline org-index-file "Tasks")
-         "* TODO %?\nSCHEDULED: <%(org-read-date nil nil \"+14d\")>\n"
-         :created t)
+  (setq org-capture-templates
+        `(("t" "Todo" entry
+           (file ,(org-file-path "tasks.org"))
+           "* TODO %?\nSCHEDULED: <%(org-read-date nil nil \"+14d\")>\n"
+           :created t)
 
-        ("m" "Meeting" entry
-         (file+headline ,(org-file-path "meetings.org") "Meetings")
-         "* %t %? \n")
+          ("m" "Meeting" entry
+           (file ,(org-file-path "meetings.org"))
+           "* %t %? \n")
 
-        ("l" "Links" entry
-         (file+headline ,(org-file-path "links.org") "Links")
-         "* %t %? \n")
+          ("l" "Links" entry
+           (file+headline ,(org-file-path "links.org") "Links")
+           "* %t %? \n")
 
-        ("n" "Notes" entry
-         (file+headline ,(org-file-path "notes.org") "Notes")
-         "* %t %? \n")
+          ("n" "Notes" entry
+           (file+headline ,(org-file-path "notes.org") "Notes")
+           "* %t %? \n")
 
-        ("h" "Habit" entry
-         (file+headline ,(org-file-path "habits.org") "Habits")
-         "* TODO %?\n%U\n%a\nSCHEDULED: %(format-time-string \"%<<%Y-%m-%d %a .+1d/3d>>\")\n:PROPERTIES:\n:STYLE: habit\n:END:\n")
+          ("r" "Recept" entry
+           (file ,(org-file-path "recept.org"))
+           "* %? \n** Inköpslista\n+[ ] \n** Recept\n")
 
-        ("p" "Python Snippet" entry
-         (file+headline ,(org-file-path "snippets.org") "Python Snippet")
-         "* %?\n#+BEGIN_SRC python\n\n#+END_SRC")
-        )
-)
+          ("h" "Habit" entry
+           (file+headline ,(org-file-path "habits.org") "Habits")
+           "* TODO %?\n%U\n%a\nSCHEDULED: %(format-time-string \"%<<%Y-%m-%d %a .+1d/3d>>\")\n:PROPERTIES:\n:STYLE: habit\n:END:\n")
+
+          ("p" "Python Snippet" entry
+           (file+headline ,(org-file-path "snippets.org") "Python Snippet")
+           "* %?\n#+BEGIN_SRC python\n\n#+END_SRC")
+          )
+  )
 #+end_src
 
 *** Extra Keybindings
@@ -309,89 +381,111 @@ Open the index file with =C-c i=
 
 (global-set-key (kbd "C-c i") 'my/open-index-file)
 #+end_src
+
 ** Wind Move
 This is a package that enables moving between open windows in emacs.
 #+begin_src emacs-lisp
-(use-package windmove
-   :bind (("M-a" . windmove-left)
-          ("M-e" . windmove-right)
-          ("M-n" . windmove-down)
-          ("M-p" . windmove-up))
-)
+  (use-package windmove
+    :diminish
+    :bind (("C-M-h" . windmove-left)
+           ("C-M-l" . windmove-right)
+           ("C-M-j" . windmove-down)
+           ("C-M-k" . windmove-up))
+  )
 #+end_src
 ** Magit
 I use Magit as my git client. It is awesome.
 #+begin_src emacs-lisp
-(use-package magit)
+  (use-package magit
+    :diminish)
 #+end_src
 ** Diff Highlight
 This package highligts diffs in a file compared to what is commited to git.
 #+begin_src emacs-lisp
-(use-package diff-hl
-  :hook ((dired-mode . diff-hl-dired-mode)
-         (magit-post-refresh . diff-hl-magit-post-refresh))
-  :config (global-diff-hl-mode +1)
-)
+  (use-package diff-hl
+    :diminish
+    :hook ((dired-mode . diff-hl-dired-mode)
+           (magit-post-refresh . diff-hl-magit-post-refresh))
+    :config (global-diff-hl-mode +1)
+  )
 #+end_src
 
 ** Easy Kill
 Improved mark and kill things.
 #+begin_src emacs-lisp
-(use-package easy-kill
-  :bind (([remap kill-ring-save] . easy-kill)
-         ([remap mark-sexp] . easy-mark))
-)
+  (use-package easy-kill
+    :diminish
+    :bind (([remap kill-ring-save] . easy-kill)
+           ([remap mark-sexp] . easy-mark))
+  )
 #+end_src
 
 ** Smartparens
 Use smart parens to handle pairs, e.g. =<% %>=.
 #+begin_src emacs-lisp
   (use-package smartparens
+    :diminish
+    :custom
+    (sp-base-key-bindings 'paredit)
+    (sp-autoskip-closing-pair 'always)
+    (sp-hybrid-kill-entire-symbol nil)
     :config
-    (setq sp-base-key-bindings 'paredit)
-    (setq sp-autoskip-closing-pair 'always)
-    (setq sp-hybrid-kill-entire-symbol nil)
     (sp-use-paredit-bindings)
     (show-smartparens-global-mode +1)
+    (smartparens-global-mode +1)
+
+    (define-key prog-mode-map (kbd "M-\"") (my/wrap-with "\""))
+    (define-key prog-mode-map (kbd "M-'") (my/wrap-with "'"))
   )
 #+end_src
 
 ** Hl todo
 Highlight TODO in source code.
 #+begin_src emacs-lisp
-(use-package hl-todo
-  :config (global-hl-todo-mode 1)
-)
+  (use-package hl-todo
+    :diminish
+    :config (global-hl-todo-mode 1)
+  )
 #+end_src
 
 ** Whitespace
 Shows whitespace in editor.
 #+begin_src emacs-lisp
-(use-package whitespace
-  :custom
-  (whitespace-line-column 80)
-  (whitespace-style '(face tabs empty trailing lines-tail))
-)
+  (use-package whitespace
+    :diminish
+    :custom
+    (whitespace-line-column 120)
+    (whitespace-style '(face tabs empty trailing lines-tail))
+    :config
+    (add-hook 'before-save-hook 'delete-trailing-whitespace))
+
+  (defun my/enable-whitespace ()
+    (whitespace-mode +1))
+
+  (add-hook 'text-mode-hook 'my/enable-whitespace)
+  (add-hook 'prog-mode-hook 'my/enable-whitespace)
 #+end_src
 
 ** Undo Tree
 A super nice package that display a undo tree which you can traverse forward and backwards.
 #+begin_src emacs-lisp
-(use-package undo-tree
-  :custom
-  (undo-tree-history-directory-alist `((".*" . ,temporary-file-directory)))
-  (undo-tree-auto-save-history t)
-  :config
-  (global-undo-tree-mode)
-)
+  (use-package undo-tree
+    :diminish
+    :custom
+    (undo-tree-history-directory-alist `((".*" . ,temporary-file-directory)))
+    (undo-tree-auto-save-history t)
+    :config
+    (global-undo-tree-mode)
+  )
 #+end_src
 
 ** Rainbow Mode
 Sets the background color of strings that match color names, e.g. #0000ff
 #+begin_src emacs-lisp
-(use-package rainbow-mode
-  :hook (css-mode scss-mode)
-)
+  (use-package rainbow-mode
+    :diminish
+    :hook (css-mode scss-mode)
+  )
 #+end_src
 
 ** Crux
@@ -399,10 +493,11 @@ Crux adds some usefull extensions that is alos included in prelude.
 And I am to used to them.
 #+begin_src emacs-lisp
   (use-package crux
+    :diminish
     :bind (("C-a" . crux-move-beginning-of-line)
            ("C-<return>" . crux-smart-open-line)
            ("C-S-<return>" . crux-smart-open-line-above))
-    :config 
+    :config
     (crux-with-region-or-line kill-region))
 #+end_src
 
@@ -410,6 +505,7 @@ And I am to used to them.
 Move text moves the current line, or region.
 #+begin_src emacs-lisp
   (use-package move-text
+    :diminish
     :bind (("C-S-p" . move-text-up)
            ("C-S-n" . move-text-down)))
 #+end_src
@@ -418,18 +514,181 @@ Move text moves the current line, or region.
 Lets me navigate throug my kill ring.
 #+begin_src emacs-lisp
   (use-package browse-kill-ring
+    :diminish
     :config
     (browse-kill-ring-default-keybindings))
 #+end_src
 
+** EditorConfig
+A [[https://editorconfig.org][EditorConfig]] plugin. I want it globally enabled.
+#+begin_src emacs-lisp
+  (use-package editorconfig
+    :diminish
+    :config
+    (editorconfig-mode 1))
+#+end_src
+
+** SuperSave
+Autosaves files when idle.
+#+begin_src emacs-lisp
+  (use-package super-save
+    :diminish
+    :config
+    (super-save-mode +1))
+#+end_src
+
+** Auto Dim Other Buffers
+This package dims the unselected buffers.
+#+begin_src emacs-lisp
+  (use-package auto-dim-other-buffers
+    :diminish
+    :hook (after-init . (lambda () (auto-dim-other-buffers-mode t)))
+    :custom-face
+    (auto-dim-other-buffers-face ((t (:background "#3B4252")))))
+#+end_src
+
+** MU4E
+#+begin_src emacs-lisp
+  (require 'mu4e)
+  (global-set-key (kbd "C-c m") 'mu4e)
+#+end_src
+*** Configure mu4e contexts
+#+begin_src emacs-lisp
+  (setq mu4e-maildir (expand-file-name "~/Maildir"))
+  (setq mu4e-contexts
+        `( ,(make-mu4e-context
+             :name "Work"
+             :match-func
+             (lambda (msg)
+               (when msg
+                 (string-prefix-p "/Trell" (mu4e-message-field msg :maildir))))
+             :vars
+             '((mu4e-trash-folder . "/Trell/[Gmail].Bin")
+               (mu4e-refile-folder . "/Trell/[Gmail].Archive")
+               (mu4e-sent-folder . "/Trell/[Gmail].Sent Mail")
+               (mu4e-drafts-folder . "/Trell/[Gmail].Drafts")))
+           ,(make-mu4e-context
+             :name "Personal"
+             :match-func
+             (lambda (msg)
+               (when msg
+                 (string-prefix-p "/Personal" (mu4e-message-field msg :maildir))))
+             :vars
+             '((mu4e-trash-folder . "/Personal/[Gmail].Bin")
+               (mu4e-refile-folder . "/Personal/[Gmail].Archive")
+               (mu4e-sent-folder . "/Personal/[Gmail].Sent Mail")
+               (mu4e-drafts-folder . "/Personal/[Gmail].Drafts")))))
+#+end_src
+*** Send email with mu4e
+Default parameters
+#+begin_src emacs-lisp
+(setq user-mail-address "johan.dahlkar@trell.se"
+      smtpmail-default-smtp-server "smtp.gmail.com"
+      smtpmail-smtp-server "smtp.gmail.com"
+      smtpmail-smtp-service 587)
+#+end_src
+
+Setup multiple accounts.
+#+begin_src emacs-lisp
+;; Now I set a list of
+(defvar my-mu4e-account-alist
+  '(("Work"
+     (mu4e-sent-folder "/Trell/[Gmail].Sent Mail")
+     (user-mail-address "johan.dahlkar@trell.se")
+     (smtpmail-smtp-user "johan.dahlkar@trell.se")
+     (smtpmail-local-domain "gmail.com")
+     (smtpmail-default-smtp-server "smtp.gmail.com")
+     (smtpmail-smtp-server "smtp.gmail.com")
+     (smtpmail-smtp-service 587)
+     )
+     ("Personal"
+     (mu4e-sent-folder "/Personal/[Gmail].Sent Mail")
+     (user-mail-address "johan.dahlkar@gmail.com")
+     (smtpmail-smtp-user "johan.dahlkar")
+     (smtpmail-local-domain "gmail.com")
+     (smtpmail-default-smtp-server "smtp.gmail.com")
+     (smtpmail-smtp-server "smtp.gmail.com")
+     (smtpmail-smtp-service 587)
+     )
+    ))
+
+(defun my-mu4e-set-account ()
+  "Set the account for composing a message.
+   This function is taken from:
+     https://www.djcbsoftware.nl/code/mu/mu4e/Multiple-accounts.html"
+  (let* ((account
+    (if mu4e-compose-parent-message
+        (let ((maildir (mu4e-message-field mu4e-compose-parent-message :maildir)))
+    (string-match "/\\(.*?\\)/" maildir)
+    (match-string 1 maildir))
+      (completing-read (format "Compose with account: (%s) "
+             (mapconcat #'(lambda (var) (car var))
+            my-mu4e-account-alist "/"))
+           (mapcar #'(lambda (var) (car var)) my-mu4e-account-alist)
+           nil t nil nil (caar my-mu4e-account-alist))))
+   (account-vars (cdr (assoc account my-mu4e-account-alist))))
+    (if account-vars
+  (mapc #'(lambda (var)
+      (set (car var) (cadr var)))
+        account-vars)
+      (error "No email account found"))))
+(add-hook 'mu4e-compose-pre-hook 'my-mu4e-set-account)
+#+end_src
+*** Mu4e Headers
+#+begin_src emacs-lisp
+; (add-to-list 'mu4e-header-info-custom)
+#+end_src
+** Perspective Mode
+   Is used to create and manage emacs workspaces.
+#+begin_src emacs-lisp
+  (define-key input-decode-map
+      (kbd "C-[")
+      [control-bracketleft])
+  (use-package perspective
+    :bind (([control-bracketleft] . persp-prev)
+           ("C-]" . persp-next))
+    :config
+    (persp-mode))
+  (require 'persp-projectile)
+#+end_src
+** Company Mode
+#+begin_src emacs-lisp
+  (use-package company
+    :diminish
+    :config
+    (setq company-show-numbers t)
+    (setq company-tooltip-limit 10)
+    (setq company-minimum-prefix-length 2)
+    (setq company-format-margin-function nil)
+    (setq company-tooltip-flip-when-above t)
+    (global-company-mode 1))
+#+end_src
+** Flycheck
+#+begin_src emacs-lisp
+  (use-package flycheck
+    :diminish
+    :config
+    (global-flycheck-mode)
+    (custom-set-variables
+     '(flycheck-python-flake8-executable "python3.10")
+     '(flycheck-python-pycompile-executable "python3.10")
+     '(flycheck-python-pylint-executable "python3.10"))
+    )
+#+end_src
 * Programming
 ** Base
+#+begin_src emacs-lisp
+;'  (define-key prog-mode-map (kbd "M-\"") (my/wrap-with "\""))
+  (define-key prog-mode-map (kbd "M-(") (my/wrap-with "("))
+  (define-key prog-mode-map (kbd "M-[") (my/wrap-with "["))
+#+end_src
 *** Which function
 Shows the name of the current function definition in the modeline.
 #+begin_src emacs-lisp
-(use-package which-func
-  :config (which-function-mode 1)
-)
+  (use-package which-func
+    :diminish
+    :config (which-function-mode 1)
+  )
 #+end_src
 *** LSP
 Install a lsp client mode.
@@ -446,22 +705,73 @@ Install a lsp client mode.
 *** Anaconda Mode
 #+begin_src emacs-lisp
 (use-package anaconda-mode
+  :diminish
   :hook python-mode
 )
 #+end_src
-** JavaScript
-*** Js2 mode
-Install a improved javascript editing mode.
+** Lisp
 #+begin_src emacs-lisp
-(use-package js2-mode
-  :config (add-to-list 'auto-mode-alist '("\\.js\\'"    . js2-mode))
-          (add-to-list 'auto-mode-alist '("\\.pac\\'"   . js2-mode))
-          (add-to-list 'interpreter-mode-alist '("node" . js2-mode))
-)
+  (defun my/lisp-coding-defaults ()
+    (smartparens-strict-mode +1)
+    (rainbow-delimiters-mode +1))
+
+  (setq my/lisp-coding-hook 'my/lisp-coding-defaults)
+#+end_src
+*** Common Lisp
+#+begin_src emacs-lisp
+(add-hook 'lisp-mode-hook (lambda () (run-hooks 'my/lisp-coding-defaults)))
+#+end_src
+
+*** Emacs Lisp
+#+begin_src emacs-lisp
+(add-hook 'emacs-lisp-mode-hook (lambda () (run-hooks 'my/lisp-coding-defaults)))
+#+end_src
+
+** JavaScript
+*** Web Mode
+A mode for editing html templates. All html files should use web-mode.
+
+And disable auto pairing to better work with smartparens.
+#+begin_src emacs-lisp
+  (use-package web-mode
+    :config
+    (add-to-list 'auto-mode-alist '("\\.html?\\'" . web-mode))
+    (add-to-list 'auto-mode-alist '("\\.js?\\'" . web-mode))
+    (flycheck-add-mode 'javascript-eslint 'web-mode)
+    (setq-default flycheck-temp-prefix ".flycheck")
+    ;; adjust indents for web-mode to 2 spaces
+    ;; use local eslint from node_modules before global
+    ;; http://emacs.stackexchange.com/questions/21205/flycheck-with-file-relative-eslint-executable
+    (defun my/use-eslint-from-node-modules ()
+      (let* ((root (locate-dominating-file
+                    (or (buffer-file-name) default-directory)
+                    "node_modules"))
+             (eslint (and root
+                          (expand-file-name "node_modules/eslint/bin/eslint.js"
+                                            root))))
+        (when (and eslint (file-executable-p eslint))
+          (setq-local flycheck-javascript-eslint-executable eslint))))
+    (add-hook 'flycheck-mode-hook #'my/use-eslint-from-node-modules)
+    (defun my-web-mode-hook ()
+      "Hooks for Web mode. Adjust indents"
+  ;;; http://web-mode.org/
+      (setq web-mode-markup-indent-offset 2)
+      (setq web-mode-css-indent-offset 2)
+      (setq web-mode-code-indent-offset 2))
+    (add-hook 'web-mode-hook  'my-web-mode-hook)
+    ;; for better jsx syntax-highlighting in web-mode
+    ;; - courtesy of Patrick @halbtuerke
+    (defadvice web-mode-highlight-part (around tweak-jsx activate)
+      (if (equal web-mode-content-type "jsx")
+          (let ((web-mode-enable-part-face nil))
+            ad-do-it)
+        ad-do-it))
+    )
 #+end_src
 *** JSON mode
 #+begin_src emacs-lisp
-(use-package json-mode)
+  (use-package json-mode
+    :diminish)
 #+end_src
 ** Rust
 If these steps fail you may need to install
@@ -472,30 +782,19 @@ If these steps fail you may need to install
  + rls (language server)
 *** Rust mode
 #+begin_src emacs-lisp
-(use-package rust-mode
-  :ensure-system-package (
-    (rustup . "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh")
-    (rustfmt . "rustup component add rustfmt")
+  (use-package rust-mode
+    :diminish
+    :ensure-system-package (
+      (rustup . "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh")
+      (rustfmt . "rustup component add rustfmt")
+    )
   )
-  :config (setq rust-format-on-save t)
-)
 #+end_src
 *** Cargo
 #+begin_src emacs-lisp
-(use-package cargo
-  :hook (rust-mode . cargo-minor-mode)
-)
-#+end_src
-** Web
-A mode for editing html templates. All html files should use web-mode.
-
-And disable auto pairing to better work with smartparens.
-#+begin_src emacs-lisp
-(use-package web-mode
-  :config
-  (add-to-list 'auto-mode-alist '("\\.html?\\'" . web-mode))
-  (setq web-mode-enable-auto-pairing nil)
-)
+  (use-package cargo
+    :diminish
+    :hook (rust-mode . cargo-minor-mode))
 #+end_src
 *** Smartparens
 Add custom smartparens pairs.
@@ -520,13 +819,42 @@ Set indent of css to 2 spaces
 
 *** SCSS Mode
 #+begin_src emacs-lisp
-(use-package scss-mode
-  :custom
-  (scss-compile-at-save nil)
-)
+  (use-package scss-mode
+    :diminish
+    :custom
+    (scss-compile-at-save nil))
 #+end_src
 
 ** YAML
 #+begin_src emacs-lisp
-  (use-package yaml-mode)
+  (use-package yaml-mode
+    :diminish)
+#+end_src
+*** Gitlab Ci
+#+begin_src emacs-lisp
+  (use-package gitlab-ci-mode
+    :diminish)
+#+end_src
+** HCL
+#+begin_src emacs-lisp
+  (use-package hcl-mode
+    :diminish
+    :mode (("\\.tf\\'" . hcl-mode)
+           ("\\.tfvars\\'" . hcl-mode)))
+#+end_src
+
+** Docker
+#+begin_src emacs-lisp
+  (use-package dockerfile-mode
+    :diminish
+    :config
+    (add-to-list 'auto-mode-alist '("\\.Dockerfile\\'" . dockerfile-mode)))
+#+end_src
+* Custom
+** Commit MSG
+#+begin_src emacs-lisp
+(defun my-git-commit-setup ()
+  (insert "Title \nUser-Story: DG-\nTask: DG-"))
+
+(add-hook 'git-commit-setup-hook 'my-git-commit-setup)
 #+end_src
