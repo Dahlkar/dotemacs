@@ -22,7 +22,9 @@
      ("\\.pdf\\'" . "evince %s")))
  '(package-selected-packages
    '(helm-rg rego-mode typescript-mode csv-mode hcl-mode yaml-mode scss-mode web-mode cargo rust-mode json-mode js2-mode anaconda-mode lsp-ui lsp-mode super-save editorconfig browse-kill-ring move-text crux rainbow-mode undo-tree use-package-ensure-system-package smartparens org-bullets nord-theme magit hl-todo helm-projectile easy-kill diminish diff-hl))
- '(safe-local-variable-values '((flycheck-disabled-checkers emacs-lisp-checkdoc))))
+ '(safe-local-variable-values '((flycheck-disabled-checkers emacs-lisp-checkdoc)))
+ '(warning-suppress-log-types '((use-package) (use-package)))
+ '(warning-suppress-types '((use-package))))
 (custom-set-faces
  ;; custom-set-faces was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.

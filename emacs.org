@@ -17,15 +17,17 @@
 #+end_src
 ** Install =use-package=.
 #+begin_src emacs-lisp
-(unless (package-installed-p 'use-package)
-  (package-refresh-contents)
-  (package-install 'use-package t))
+  (unless (package-installed-p 'use-package)
+    (package-refresh-contents)
+    (package-install 'use-package t))
 
-(require 'use-package-ensure)
-(setq use-package-always-ensure t)
+  (eval-when-compile
+    (require 'use-package))
+  (require 'use-package-ensure)
+  (setq use-package-always-ensure t)
 
-(use-package use-package-ensure-system-package
-  :ensure t)
+  (use-package use-package-ensure-system-package
+    :ensure t)
 #+end_src
 ** Variables
 #+begin_src emacs-lisp
@@ -34,65 +36,69 @@
 * General Configuration
 ** Better Defaults
 #+begin_src emacs-lisp
-    (setq-default
-     ad-redefinition-action 'accept         ; Silence warnings for redefinition
-     auto-save-list-file-prefix nil         ; Prevent tracking for auto-saves
-     cursor-in-non-selected-windows nil     ; Hide the cursor in inactive windows
-     delete-by-moving-to-trash t            ; Delete files to trash
-     fill-column 80                         ; Set width for automatic line breaks
-     gc-cons-threshold (* 8 1024 1024)      ; Increase garbace collect threshold
-     help-window-select t                   ; Focus new help windows when opened
-     indent-tabs-mode nil                   ; Stop using tabs to indent
-     inhibit-startup-screen t               ; Disable start-up screen
-     initial-scratch-message ""             ; Empty the initial *scratch* buffer
-     mouse-yank-at-point t                  ; Yank at point rather than pointer
-     read-process-output-max (* 1024 1024)  ; Increase read size per process
-     recenter-positions '(5 top bottom)     ; Set re-centering positions
-     scroll-conservatively 101              ; Avoid recentering when scrolling far
-     scroll-margin 2                        ; Add a margin when scrolling vertically
-     scroll-preserve-screen-position 1
-     select-enable-clipboard t              ; Merge system's and Emacs' clipboard
-     sentence-end-double-space nil          ; Use a single space after dots
-     show-help-function nil                 ; Disable help text everywhere
-     tab-always-indent 'complete            ; Tab indents first then tries completions
-     tab-width 4                            ; Smaller width for tab characters
-     uniquify-buffer-name-style 'forward    ; Uniquify buffer names
-     warning-minimum-level :error           ; Skip warning buffers
-     window-combination-resize t            ; Resize windows proportionally
-     x-stretch-cursor t                     ; Stretch cursor to the glyph width
-     ring-bell-function 'ignore             ; Disable ring bell
-     line-number-mode nil
-     column-number-mode nil
-     size-indication-mode nil
-     mode-line-position nil
+   (setq-default
+    ad-redefinition-action 'accept         ; Silence warnings for redefinition
+    auto-save-list-file-prefix nil         ; Prevent tracking for auto-saves
+    cursor-in-non-selected-windows nil     ; Hide the cursor in inactive windows
+    delete-by-moving-to-trash t            ; Delete files to trash
+    fill-column 80                         ; Set width for automatic line breaks
+    gc-cons-threshold (* 8 1024 1024)      ; Increase garbace collect threshold
+    help-window-select t                   ; Focus new help windows when opened
+    indent-tabs-mode nil                   ; Stop using tabs to indent
+    inhibit-startup-screen t               ; Disable start-up screen
+    initial-scratch-message ""             ; Empty the initial *scratch* buffer
+    mouse-yank-at-point t                  ; Yank at point rather than pointer
+    read-process-output-max (* 1024 1024)  ; Increase read size per process
+    recenter-positions '(5 top bottom)     ; Set re-centering positions
+    scroll-conservatively 101              ; Avoid recentering when scrolling far
+    scroll-margin 2                        ; Add a margin when scrolling vertically
+    scroll-preserve-screen-position 1
+    select-enable-clipboard t              ; Merge system's and Emacs' clipboard
+    sentence-end-double-space nil          ; Use a single space after dots
+    show-help-function nil                 ; Disable help text everywhere
+    tab-always-indent 'complete            ; Tab indents first then tries completions
+    tab-width 4                            ; Smaller width for tab characters
+    uniquify-buffer-name-style 'forward    ; Uniquify buffer names
+    warning-minimum-level :error           ; Skip warning buffers
+    window-combination-resize t            ; Resize windows proportionally
+    x-stretch-cursor t                     ; Stretch cursor to the glyph width
+    ring-bell-function 'ignore             ; Disable ring bell
+    line-number-mode nil
+    column-number-mode nil
+    size-indication-mode nil
+    mode-line-position nil
+    )
+   (blink-cursor-mode 0)                     ; Prefer a still cursor
+   (delete-selection-mode 1)                 ; Replace region when inserting text
+   (fset 'yes-or-no-p 'y-or-n-p)             ; Replace yes/no prompts with y/n
+   (global-subword-mode 1)                   ; Iterate through CamelCase words
+   (mouse-avoidance-mode 'exile)             ; Avoid collision of mouse with point
+   (put 'downcase-region 'disabled nil)      ; Enable downcase-region
+   (put 'upcase-region 'disabled nil)        ; Enable upcase-region
+   (set-default-coding-systems 'utf-8)       ; Default to utf-8 encoding
+   (global-linum-mode t)
+   (global-hl-line-mode t)
+   (setq backup-directory-alist
+         `((".*" . ,temporary-file-directory)))
+   (setq auto-save-file-name-transforms
+         `((".*" ,temporary-file-directory t)))
+
+   ;; autosave the undo-tree history
+   (setq undo-tree-history-directory-alist
+         `((".*" . ,temporary-file-directory)))
+   (setq undo-tree-auto-save-history t)
+
+   ;; revert buffers automatically when underlying files are changed externally
+   (global-auto-revert-mode t)
+
+  (let ((default-directory  "~/.emacs.d/lisp/"))
+    (normal-top-level-add-subdirs-to-load-path))
+   ;; key bindings
+   (when (eq system-type 'darwin) ;; mac specific settings
+     (setq mac-option-modifier 'meta)
+     (setq mac-command-modifier 'control)
+     (global-set-key [kp-delete] 'delete-char) ;; sets fn-delete to be right-delete
      )
-    (blink-cursor-mode 0)                     ; Prefer a still cursor
-    (delete-selection-mode 1)                 ; Replace region when inserting text
-    (fset 'yes-or-no-p 'y-or-n-p)             ; Replace yes/no prompts with y/n
-    (global-subword-mode 1)                   ; Iterate through CamelCase words
-    (mouse-avoidance-mode 'exile)             ; Avoid collision of mouse with point
-    (put 'downcase-region 'disabled nil)      ; Enable downcase-region
-    (put 'upcase-region 'disabled nil)        ; Enable upcase-region
-    (set-default-coding-systems 'utf-8)       ; Default to utf-8 encoding
-    (tool-bar-mode 0)                         ; Disable tool bar
-    (menu-bar-mode 0)
-    (scroll-bar-mode 0)
-    (global-linum-mode t)
-    (global-hl-line-mode t)
-    (setq backup-directory-alist
-          `((".*" . ,temporary-file-directory)))
-    (setq auto-save-file-name-transforms
-          `((".*" ,temporary-file-directory t)))
-
-    ;; autosave the undo-tree history
-    (setq undo-tree-history-directory-alist
-          `((".*" . ,temporary-file-directory)))
-    (setq undo-tree-auto-save-history t)
-
-    ;; revert buffers automatically when underlying files are changed externally
-    (global-auto-revert-mode t)
-    (let ((default-directory  "~/.emacs.d/lisp/"))
-      (normal-top-level-add-subdirs-to-load-path))
 #+end_src
 ** Theme
 #+begin_src emacs-lisp
@@ -105,10 +111,6 @@
 #+end_src
 
 ** Global Keybindings
-*** Kill lines backward
-#+begin_src emacs-lisp
-(global-set-key (kbd "C-<backspace>") 'crux-kill-line-backwards)
-#+end_src
 
 *** Font Size
 #+begin_src emacs-lisp
@@ -119,6 +121,19 @@
 *** Hippe Expand
 #+begin_src emacs-lisp
 (global-set-key (kbd "M-/") 'hippie-expand)
+#+end_src
+
+** Flycheck
+#+begin_src emacs-lisp
+  (use-package flycheck
+    :diminish
+    :config
+    (global-flycheck-mode)
+    (custom-set-variables
+     '(flycheck-python-flake8-executable "python3.10")
+     '(flycheck-python-pycompile-executable "python3.10")
+     '(flycheck-python-pylint-executable "python3.10"))
+    )
 #+end_src
 
 *** Open Emacs Config
@@ -234,6 +249,7 @@ I use projectile to navigate between and in different projects.
 #+begin_src emacs-lisp
   (use-package helm
     :diminish
+    :ensure t
     :init
     (setq helm-split-window-in-side-p t
           helm-buffers-fuzzy-matching t
@@ -387,10 +403,10 @@ This is a package that enables moving between open windows in emacs.
 #+begin_src emacs-lisp
   (use-package windmove
     :diminish
-    :bind (("C-M-h" . windmove-left)
-           ("C-M-l" . windmove-right)
-           ("C-M-j" . windmove-down)
-           ("C-M-k" . windmove-up))
+    :bind (("M-j" . windmove-left)
+           ("M-l" . windmove-right)
+           ("M-k" . windmove-down)
+           ("M-i" . windmove-up))
   )
 #+end_src
 ** Magit
@@ -436,6 +452,7 @@ Use smart parens to handle pairs, e.g. =<% %>=.
 
     (define-key prog-mode-map (kbd "M-\"") (my/wrap-with "\""))
     (define-key prog-mode-map (kbd "M-'") (my/wrap-with "'"))
+    (define-key smartparens-mode-map (kbd "M-j") nil)
   )
 #+end_src
 
@@ -492,13 +509,14 @@ Sets the background color of strings that match color names, e.g. #0000ff
 Crux adds some usefull extensions that is alos included in prelude.
 And I am to used to them.
 #+begin_src emacs-lisp
-  (use-package crux
-    :diminish
-    :bind (("C-a" . crux-move-beginning-of-line)
-           ("C-<return>" . crux-smart-open-line)
-           ("C-S-<return>" . crux-smart-open-line-above))
-    :config
-    (crux-with-region-or-line kill-region))
+    (use-package crux
+      :diminish
+      :bind (("C-a" . crux-move-beginning-of-line)
+             ("C-<return>" . crux-smart-open-line)
+             ("C-S-<return>" . crux-smart-open-line-above)
+             ("C-<backspace>" . crux-kill-line-backwards))
+      :config
+      (crux-with-region-or-line kill-region))
 #+end_src
 
 ** Move Text
@@ -547,97 +565,6 @@ This package dims the unselected buffers.
     (auto-dim-other-buffers-face ((t (:background "#3B4252")))))
 #+end_src
 
-** MU4E
-#+begin_src emacs-lisp
-  (require 'mu4e)
-  (global-set-key (kbd "C-c m") 'mu4e)
-#+end_src
-*** Configure mu4e contexts
-#+begin_src emacs-lisp
-  (setq mu4e-maildir (expand-file-name "~/Maildir"))
-  (setq mu4e-contexts
-        `( ,(make-mu4e-context
-             :name "Work"
-             :match-func
-             (lambda (msg)
-               (when msg
-                 (string-prefix-p "/Trell" (mu4e-message-field msg :maildir))))
-             :vars
-             '((mu4e-trash-folder . "/Trell/[Gmail].Bin")
-               (mu4e-refile-folder . "/Trell/[Gmail].Archive")
-               (mu4e-sent-folder . "/Trell/[Gmail].Sent Mail")
-               (mu4e-drafts-folder . "/Trell/[Gmail].Drafts")))
-           ,(make-mu4e-context
-             :name "Personal"
-             :match-func
-             (lambda (msg)
-               (when msg
-                 (string-prefix-p "/Personal" (mu4e-message-field msg :maildir))))
-             :vars
-             '((mu4e-trash-folder . "/Personal/[Gmail].Bin")
-               (mu4e-refile-folder . "/Personal/[Gmail].Archive")
-               (mu4e-sent-folder . "/Personal/[Gmail].Sent Mail")
-               (mu4e-drafts-folder . "/Personal/[Gmail].Drafts")))))
-#+end_src
-*** Send email with mu4e
-Default parameters
-#+begin_src emacs-lisp
-(setq user-mail-address "johan.dahlkar@trell.se"
-      smtpmail-default-smtp-server "smtp.gmail.com"
-      smtpmail-smtp-server "smtp.gmail.com"
-      smtpmail-smtp-service 587)
-#+end_src
-
-Setup multiple accounts.
-#+begin_src emacs-lisp
-;; Now I set a list of
-(defvar my-mu4e-account-alist
-  '(("Work"
-     (mu4e-sent-folder "/Trell/[Gmail].Sent Mail")
-     (user-mail-address "johan.dahlkar@trell.se")
-     (smtpmail-smtp-user "johan.dahlkar@trell.se")
-     (smtpmail-local-domain "gmail.com")
-     (smtpmail-default-smtp-server "smtp.gmail.com")
-     (smtpmail-smtp-server "smtp.gmail.com")
-     (smtpmail-smtp-service 587)
-     )
-     ("Personal"
-     (mu4e-sent-folder "/Personal/[Gmail].Sent Mail")
-     (user-mail-address "johan.dahlkar@gmail.com")
-     (smtpmail-smtp-user "johan.dahlkar")
-     (smtpmail-local-domain "gmail.com")
-     (smtpmail-default-smtp-server "smtp.gmail.com")
-     (smtpmail-smtp-server "smtp.gmail.com")
-     (smtpmail-smtp-service 587)
-     )
-    ))
-
-(defun my-mu4e-set-account ()
-  "Set the account for composing a message.
-   This function is taken from:
-     https://www.djcbsoftware.nl/code/mu/mu4e/Multiple-accounts.html"
-  (let* ((account
-    (if mu4e-compose-parent-message
-        (let ((maildir (mu4e-message-field mu4e-compose-parent-message :maildir)))
-    (string-match "/\\(.*?\\)/" maildir)
-    (match-string 1 maildir))
-      (completing-read (format "Compose with account: (%s) "
-             (mapconcat #'(lambda (var) (car var))
-            my-mu4e-account-alist "/"))
-           (mapcar #'(lambda (var) (car var)) my-mu4e-account-alist)
-           nil t nil nil (caar my-mu4e-account-alist))))
-   (account-vars (cdr (assoc account my-mu4e-account-alist))))
-    (if account-vars
-  (mapc #'(lambda (var)
-      (set (car var) (cadr var)))
-        account-vars)
-      (error "No email account found"))))
-(add-hook 'mu4e-compose-pre-hook 'my-mu4e-set-account)
-#+end_src
-*** Mu4e Headers
-#+begin_src emacs-lisp
-; (add-to-list 'mu4e-header-info-custom)
-#+end_src
 ** Perspective Mode
    Is used to create and manage emacs workspaces.
 #+begin_src emacs-lisp
@@ -647,6 +574,8 @@ Setup multiple accounts.
   (use-package perspective
     :bind (([control-bracketleft] . persp-prev)
            ("C-]" . persp-next))
+    :custom
+    (persp-mode-prefix-key (kbd "C-z"))
     :config
     (persp-mode))
   (require 'persp-projectile)
@@ -662,18 +591,6 @@ Setup multiple accounts.
     (setq company-format-margin-function nil)
     (setq company-tooltip-flip-when-above t)
     (global-company-mode 1))
-#+end_src
-** Flycheck
-#+begin_src emacs-lisp
-  (use-package flycheck
-    :diminish
-    :config
-    (global-flycheck-mode)
-    (custom-set-variables
-     '(flycheck-python-flake8-executable "python3.10")
-     '(flycheck-python-pycompile-executable "python3.10")
-     '(flycheck-python-pylint-executable "python3.10"))
-    )
 #+end_src
 * Programming
 ** Base
